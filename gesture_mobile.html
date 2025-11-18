@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GestureDrop Mobile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f3f3f3;
+            padding: 20px;
+            margin: 0;
+            color: #333;
+        }
+
+        h2 {
+            text-align: center;
+        }
+
+        #status {
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+        #serverClipboard {
+            width: 100%;
+            height: 180px;
+            border-radius: 8px;
+            border: 1px solid #bbb;
+            padding: 10px;
+            font-size: 16px;
+            box-sizing: border-box;
+            background: white;
+            resize: none;
+        }
+
+        .button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            border-radius: 8px;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+        }
+
+        .button:active {
+            opacity: 0.8;
+        }
+    </style>
+</head>
+
+<body>
+
+<h2>GestureDrop Mobile</h2>
+
+<div id="status">Connecting...</div>
+
+<textarea id="serverClipboard" placeholder="Server clipboard text will appear here..."></textarea>
+
+<button class="button" onclick="manualRefresh()">Refresh Clipboard</button>
+
+<script>
+    // ---------------------------
+    // CONFIG
+    // ---------------------------
+    const SERVER_IP = "192.168.1.7:5000";  // CHANGE ONLY IF NEEDED
+    const WS_URL = `ws://${SERVER_IP}/ws`;
+
+    let ws;
+
+    // ---------------------------
+    // WEBSOCKET CONNECTOR
+    // ---------------------------
+    function connectWebSocket() {
+        ws = new WebSocket(WS_URL);
+
+        ws.onopen = () => {
+            updateStatus("Connected", "green");
+        };
+
+        ws.onclose = () => {
+            updateStatus("Disconnected – retrying...", "red");
+            setTimeout(connectWebSocket, 1500);
+        };
+
+        ws.onerror = () => {
+            updateStatus("Error – retrying...", "red");
+        };
+
+        ws.onmessage = (event) => {
+            console.log("WS →", event.data);
+
+            // If server pushes clipboard text
+            if (event.data.startsWith("CLIPBOARD:")) {
+                const text = event.data.replace("CLIPBOARD:", "");
+                updateClipboardUI(text);
+            }
+        };
+    }
+
+    connectWebSocket();
+
+    // ---------------------------
+    // FETCH SERVER CLIPBOARD EVERY 2s
+    // ---------------------------
+    setInterval(() => {
+        fetch(`http://${SERVER_IP}/get_clipboard`)
+            .then(res => res.text())
+            .then(text => {
+                console.log("FETCH →", text);
+                updateClipboardUI(text);
+            })
+            .catch(err => console.error("Fetch error:", err));
+    }, 2000);
+
+    // Manual refresh button
+    function manualRefresh() {
+        fetch(`http://${SERVER_IP}/get_clipboard`)
+            .then(res => res.text())
+            .then(text => {
+                updateClipboardUI(text);
+            });
+    }
+
+    // ---------------------------
+    // UI HELPERS
+    // ---------------------------
+    function updateClipboardUI(text) {
+        const box = document.getElementById("serverClipboard");
+
+        if (box.value !== text) {
+            box.value = text;
+        }
+    }
+
+    function updateStatus(msg, color) {
+        const st = document.getElementById("status");
+        st.textContent = msg;
+        st.style.color = "white";
+        st.style.background = color;
+    }
+</script>
+
+</body>
+</html>
